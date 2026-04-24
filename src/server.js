@@ -1,18 +1,27 @@
 const express = require('express');
 const sequelize = require('./config/database');
-const Runway = require('./models/Runway');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(express.json());
 
-// Sincroniza o banco e sobe o app
-sequelize.sync().then(() => {
-    console.log('✅ Banco sincronizado!');
-    app.listen(3000, () => console.log('🚀 Servidor rodando na porta 3000'));
-});
+// --- AUTOMAÇÃO DE CONTROLLERS ---
+const controllerDir = path.join(__dirname, 'controller');
 
-// Endpoint de teste
-app.get('/runways', async (req, res) => {
-    const data = await Runway.findAll();
-    res.json(data);
+fs.readdirSync(controllerDir).forEach((file) => {
+    // Verifica se é um arquivo de controller
+    if (file.endsWith('Controller.js')) {
+        const entityName = file.replace('Controller.js', '').toLowerCase();
+        const controller = require(path.join(controllerDir, file));
+        
+        // Registra a rota automaticamente
+        app.use(`/${entityName}`, controller);
+        console.log(`✅ Controller registrado: /${entityName}`);
+    }
+});
+// --------------------------------
+
+sequelize.sync().then(() => {
+    app.listen(3000, () => console.log('🚀 Servidor rodando com registro automático!'));
 });
