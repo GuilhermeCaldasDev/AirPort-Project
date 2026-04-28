@@ -1,51 +1,45 @@
-const Flight = require('../models/FlightModels');
-const { Op } = require('sequelize');
+const Flight = require('../models/FlightModel');
+const Airline = require('../models/AirlineModel');
+const { FlightStatus } = require('../config/enums');
 
 const FlightService = {
-    
-    // Regra: Lógica de negócio para busca (ex: filtragem inteligente)
-    async RetornaVoos() {
-        // Exemplo de regra: Filtra apenas voos que não foram cancelados
-        // e garante ordenação por horário de partida
-        return await Flight.findAll({
-            where: { status: { [Op.ne]: 'CANCELLED' } },
-            order: [['departureTime', 'ASC']]
-        });
+
+    // 1. Corrigido nome para fetchAllFlights (atende ao GET /flights)
+    async fetchAllFlights() {
+        return await Flight.findAll();
     },
 
-    // Regra: Validações antes da persistência
-    async CriaVoos(data) {
-        const { flightNumber, departureTime } = data;
+    // 2. Corrigido nome para scheduleNewFlight (atende ao POST /flights)
+    async scheduleNewFlight(data) {
+        // Regras: Airline válida e status inicial
+        const airline = await Airline.findByPk(data.airlineId);
+        if (!airline) throw new Error("Airline inválida ou não encontrada.");
+        if (data.status === 'LANDED') throw new Error("Voo não pode ser criado como LANDED.");
 
-        // Não permite criar voos com horário de partida no passado
-        if (new Date(departureTime) < new Date()) {
-            throw new Error("Negado: Não é possível agendar voos no passado.");
-        }
-        // Formata o número do voo para maiúsculas
-        const formattedData = {
-            ...data,
-            flightNumber: flightNumber.toUpperCase()
+        return await Flight.create({ ...data, status: FlightStatus.WAITING });
+    },
+
+    // 3. Corrigido nome para updateFlightStatus (atende ao PATCH /flights/:id/status)
+    async updateFlightStatus(id, newStatus) {
+        const flight = await Flight.findByPk(id);
+        if (!flight) throw new Error("Voo não encontrado.");
+
+        // Regra: Máquina de Estados (fluxo obrigatório)
+        const flow = { 
+            [FlightStatus.WAITING]: FlightStatus.APPROACHING, 
+            [FlightStatus.APPROACHING]: FlightStatus.LANDED 
         };
 
-        return await Flight.create(formattedData);
-    },
+        if (flight.status !== newStatus && flow[flight.status] !== newStatus) {
+            throw new Error(`Fluxo inválido: ${flight.status} não pode ir para ${newStatus}.`);
+        }
 
-    // Regra: Máquina de estados (impede transições inválidas)
-    async AtualizaVoo(id, newStatus) {
-        const flight = await Flight.findByPk(id);
+        // Regra: Validação de recursos antes da transição
+        if (newStatus === FlightStatus.APPROACHING && !flight.slotId) 
+            throw new Error("Voo precisa de slot reservado para aproximar.");
         
-        if (!flight) throw new Error("Voo não encontrado");
-
-        // Regra 3: Máquina de estados (ex: voo cancelado é imutável)
-        if (flight.status === 'CANCELLED') {
-            throw new Error("Negado: Voos cancelados são imutáveis.");
-        }
-
-        // Regra 4: Validar se o status enviado é permitido
-        const validStatuses = ['ON_TIME', 'DELAYED', 'CANCELLED'];
-        if (!validStatuses.includes(newStatus)) {
-            throw new Error("Negado: Status inválido.");
-        }
+        if (newStatus === FlightStatus.LANDED && !flight.standId) 
+            throw new Error("Voo precisa de stand reservado para pousar.");
 
         flight.status = newStatus;
         return await flight.save();
