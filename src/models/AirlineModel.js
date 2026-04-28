@@ -1,10 +1,10 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-const Runway = sequelize.define('Runway', {
+const Airline = sequelize.define('Airline', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   name: { type: DataTypes.STRING, allowNull: false },
-  isBusy: { type: DataTypes.BOOLEAN, defaultValue: false }
+  code: { type: DataTypes.STRING, allowNull: false, unique: true } // Ex: TAM, GOL, AZU
 });
 
-module.exports = Runway;
+module.exports = Airline;

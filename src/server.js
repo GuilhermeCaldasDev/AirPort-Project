@@ -23,5 +23,5 @@ fs.readdirSync(controllerDir).forEach((file) => {
 // --------------------------------
 
 sequelize.sync().then(() => {
-    app.listen(3000, () => console.log('🚀 Servidor rodando com registro automático!'));
+    app.listen(3000, () => console.log('🚀 Servidor rodando e sincronizado!'));
 });
